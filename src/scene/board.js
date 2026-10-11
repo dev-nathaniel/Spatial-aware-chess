@@ -192,128 +192,344 @@ function createCoordinateLabels() {
 }
 
 /**
- * Highlight overlay manager
+ * Determine if a square is light (maple) or dark (walnut)
+ */
+export function isLightSquare(square) {
+  if (!square || square.length < 2) return false;
+  const file = square.charCodeAt(0) - 97; // a=0...h=7
+  const rank = parseInt(square[1], 10) - 1; // 1=0...8=7
+  return (file + rank) % 2 === 1;
+}
+
+function createSquareBorderShape(size, borderThickness) {
+  const outerHalf = size / 2;
+  const innerHalf = outerHalf - borderThickness;
+
+  const shape = new THREE.Shape();
+  shape.moveTo(-outerHalf, -outerHalf);
+  shape.lineTo(outerHalf, -outerHalf);
+  shape.lineTo(outerHalf, outerHalf);
+  shape.lineTo(-outerHalf, outerHalf);
+  shape.closePath();
+
+  const hole = new THREE.Path();
+  hole.moveTo(-innerHalf, -innerHalf);
+  hole.lineTo(-innerHalf, innerHalf);
+  hole.lineTo(innerHalf, innerHalf);
+  hole.lineTo(innerHalf, -innerHalf);
+  hole.closePath();
+  shape.holes.push(hole);
+
+  return shape;
+}
+
+/**
+ * High-Contrast Highlight Overlay Manager
+ * Calibrated specifically so highlights pop with vivid clarity on BOTH
+ * light maple veneer squares and dark walnut squares.
  */
 export class HighlightManager {
   constructor(highlightsGroup) {
     this.group = highlightsGroup;
-    this.selectedMesh = null;
-    this.lastMoveMeshes = [];
-    this.legalMeshes = [];
-    this.checkMesh = null;
+    this.selectedGroup = null;
+    this.lastMoveGroups = [];
+    this.legalGroups = [];
+    this.checkGroup = null;
 
-    // Materials
-    this.selectedMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color('#d9a85b'),
-      transparent: true,
-      opacity: 0.38,
-      depthWrite: false,
-    });
+    // Shared reusable geometries
+    const sqSize = SQUARE_SIZE * 0.96;
+    this.faceGeo = new THREE.PlaneGeometry(sqSize, sqSize);
+    this.borderGeo = new THREE.ShapeGeometry(createSquareBorderShape(sqSize, 0.085));
 
-    this.lastMoveMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color('#c59146'),
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-    });
+    this.legalOuterGeo = new THREE.CircleGeometry(SQUARE_SIZE * 0.17, 24);
+    this.legalInnerGeo = new THREE.CircleGeometry(SQUARE_SIZE * 0.13, 24);
+    this.legalCaptureOuterGeo = new THREE.RingGeometry(SQUARE_SIZE * 0.36, SQUARE_SIZE * 0.44, 32);
 
-    this.checkMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color('#d43f2a'),
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-    });
-
-    this.legalDotMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color('#ecd29c'),
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-    });
-
-    this.legalRingMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color('#e0a752'),
+    // 1. Selection on Light Squares (Deep warm amber-honey with rich burnt bronze frame)
+    this.selectedLightFaceMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#b56400'),
       transparent: true,
       opacity: 0.65,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    this.selectedLightBorderMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#783800'),
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+
+    // 2. Selection on Dark Squares (Radiant luminous gold with gleaming bright gold frame)
+    this.selectedDarkFaceMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#e5a83b'),
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    this.selectedDarkBorderMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ffe28a'),
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+
+    // 3. Last Move on Light Squares
+    this.lastMoveLightFaceMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#af6205'),
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    this.lastMoveLightBorderMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#783c00'),
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+
+    // 4. Last Move on Dark Squares
+    this.lastMoveDarkFaceMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#d4992e'),
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    this.lastMoveDarkBorderMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#fad173'),
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+
+    // 5. Legal Move Dots
+    this.legalShadowMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#221307'),
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    this.legalLightInnerMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#945000'),
+      transparent: true,
+      opacity: 0.90,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+    this.legalDarkInnerMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ffd475'),
+      transparent: true,
+      opacity: 0.90,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+
+    // 6. Capture Reticles
+    this.legalCaptureLightMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#c24219'),
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
       side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+    this.legalCaptureDarkMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#e06a34'),
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+
+    // 7. Check Notification
+    this.checkMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#d42a1c'),
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    this.checkRingMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ff4d3b'),
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
     });
   }
 
   setSelected(square) {
-    if (this.selectedMesh) {
-      this.group.remove(this.selectedMesh);
-      this.selectedMesh.geometry.dispose();
-      this.selectedMesh = null;
+    if (this.selectedGroup) {
+      this.group.remove(this.selectedGroup);
+      this.selectedGroup = null;
     }
     if (!square) return;
 
     const pos = squareToWorld(square);
-    const geo = new THREE.PlaneGeometry(SQUARE_SIZE * 0.94, SQUARE_SIZE * 0.94);
-    this.selectedMesh = new THREE.Mesh(geo, this.selectedMat);
-    this.selectedMesh.rotation.x = -Math.PI / 2;
-    this.selectedMesh.position.set(pos.x, 0.007, pos.z);
-    this.group.add(this.selectedMesh);
+    const isLight = isLightSquare(square);
+
+    const group = new THREE.Group();
+
+    // High-contrast filled face
+    const faceMesh = new THREE.Mesh(
+      this.faceGeo,
+      isLight ? this.selectedLightFaceMat : this.selectedDarkFaceMat
+    );
+    faceMesh.rotation.x = -Math.PI / 2;
+    faceMesh.position.y = 0.006;
+    group.add(faceMesh);
+
+    // Inlaid perimeter border frame
+    const borderMesh = new THREE.Mesh(
+      this.borderGeo,
+      isLight ? this.selectedLightBorderMat : this.selectedDarkBorderMat
+    );
+    borderMesh.rotation.x = -Math.PI / 2;
+    borderMesh.position.y = 0.007;
+    group.add(borderMesh);
+
+    group.position.set(pos.x, 0, pos.z);
+    this.group.add(group);
+    this.selectedGroup = group;
   }
 
   setLastMove(fromSquare, toSquare) {
-    this.lastMoveMeshes.forEach((m) => {
-      this.group.remove(m);
-      m.geometry.dispose();
-    });
-    this.lastMoveMeshes = [];
+    this.lastMoveGroups.forEach((g) => this.group.remove(g));
+    this.lastMoveGroups = [];
 
     [fromSquare, toSquare].filter(Boolean).forEach((sq) => {
       const pos = squareToWorld(sq);
-      const geo = new THREE.PlaneGeometry(SQUARE_SIZE * 0.94, SQUARE_SIZE * 0.94);
-      const mesh = new THREE.Mesh(geo, this.lastMoveMat);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(pos.x, 0.006, pos.z);
-      this.group.add(mesh);
-      this.lastMoveMeshes.push(mesh);
+      const isLight = isLightSquare(sq);
+
+      const group = new THREE.Group();
+
+      const faceMesh = new THREE.Mesh(
+        this.faceGeo,
+        isLight ? this.lastMoveLightFaceMat : this.lastMoveDarkFaceMat
+      );
+      faceMesh.rotation.x = -Math.PI / 2;
+      faceMesh.position.y = 0.004;
+      group.add(faceMesh);
+
+      const borderMesh = new THREE.Mesh(
+        this.borderGeo,
+        isLight ? this.lastMoveLightBorderMat : this.lastMoveDarkBorderMat
+      );
+      borderMesh.rotation.x = -Math.PI / 2;
+      borderMesh.position.y = 0.005;
+      group.add(borderMesh);
+
+      group.position.set(pos.x, 0, pos.z);
+      this.group.add(group);
+      this.lastMoveGroups.push(group);
     });
   }
 
   setLegalMoves(moves = []) {
-    this.legalMeshes.forEach((m) => {
-      this.group.remove(m);
-      m.geometry.dispose();
-    });
-    this.legalMeshes = [];
+    this.legalGroups.forEach((g) => this.group.remove(g));
+    this.legalGroups = [];
 
     moves.forEach((m) => {
       const pos = squareToWorld(m.to);
-      let mesh;
+      const isLight = isLightSquare(m.to);
+      const group = new THREE.Group();
+
       if (m.captured) {
-        // Outer ring indicator on enemy piece
-        const geo = new THREE.RingGeometry(SQUARE_SIZE * 0.38, SQUARE_SIZE * 0.44, 32);
-        mesh = new THREE.Mesh(geo, this.legalRingMat);
+        // High-contrast capture reticle
+        const ring = new THREE.Mesh(
+          this.legalCaptureOuterGeo,
+          isLight ? this.legalCaptureLightMat : this.legalCaptureDarkMat
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.009;
+        group.add(ring);
       } else {
-        // Smooth center optic pip
-        const geo = new THREE.CircleGeometry(SQUARE_SIZE * 0.16, 24);
-        mesh = new THREE.Mesh(geo, this.legalDotMat);
+        // Dual-layer optic pip: dark shadow rim + luminous center
+        const outerDot = new THREE.Mesh(this.legalOuterGeo, this.legalShadowMat);
+        outerDot.rotation.x = -Math.PI / 2;
+        outerDot.position.y = 0.008;
+        group.add(outerDot);
+
+        const innerDot = new THREE.Mesh(
+          this.legalInnerGeo,
+          isLight ? this.legalLightInnerMat : this.legalDarkInnerMat
+        );
+        innerDot.rotation.x = -Math.PI / 2;
+        innerDot.position.y = 0.009;
+        group.add(innerDot);
       }
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(pos.x, 0.008, pos.z);
-      this.group.add(mesh);
-      this.legalMeshes.push(mesh);
+
+      group.position.set(pos.x, 0, pos.z);
+      this.group.add(group);
+      this.legalGroups.push(group);
     });
   }
 
   setCheck(kingSquare) {
-    if (this.checkMesh) {
-      this.group.remove(this.checkMesh);
-      this.checkMesh.geometry.dispose();
-      this.checkMesh = null;
+    if (this.checkGroup) {
+      this.group.remove(this.checkGroup);
+      this.checkGroup = null;
     }
     if (!kingSquare) return;
 
     const pos = squareToWorld(kingSquare);
-    const geo = new THREE.CircleGeometry(SQUARE_SIZE * 0.44, 32);
-    this.checkMesh = new THREE.Mesh(geo, this.checkMat);
-    this.checkMesh.rotation.x = -Math.PI / 2;
-    this.checkMesh.position.set(pos.x, 0.009, pos.z);
-    this.group.add(this.checkMesh);
+    const group = new THREE.Group();
+
+    const checkGeo = new THREE.CircleGeometry(SQUARE_SIZE * 0.44, 32);
+    const checkMesh = new THREE.Mesh(checkGeo, this.checkMat);
+    checkMesh.rotation.x = -Math.PI / 2;
+    checkMesh.position.y = 0.009;
+    group.add(checkMesh);
+
+    const ringGeo = new THREE.RingGeometry(SQUARE_SIZE * 0.44, SQUARE_SIZE * 0.47, 32);
+    const ringMesh = new THREE.Mesh(ringGeo, this.checkRingMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.y = 0.010;
+    group.add(ringMesh);
+
+    group.position.set(pos.x, 0, pos.z);
+    this.group.add(group);
+    this.checkGroup = group;
   }
 
   clear() {

@@ -45,7 +45,10 @@ export class GameController {
       this.cameraManager.camera,
       this.board,
       this.onSelectSquare.bind(this),
-      this.onAttemptMove.bind(this)
+      this.onAttemptMove.bind(this),
+      (sq) => this.pieceMeshes.get(sq),
+      this.onInvalidPieceClicked.bind(this),
+      this.animator
     );
     this.input.setOrbitControls(this.cameraManager.controls);
 
@@ -212,6 +215,26 @@ export class GameController {
     this.board.highlightManager.setSelected(square);
     const moves = this.chess.moves({ square, verbose: true });
     this.board.highlightManager.setLegalMoves(moves);
+
+    if (moves.length === 0) {
+      this.ui.showToast('No legal moves for this piece');
+    }
+  }
+
+  onInvalidPieceClicked() {
+    if (this.gameOver || this.isAiThinking) return;
+    const turn = this.chess.turn();
+    const turnName = turn === 'w' ? 'White' : 'Black';
+    if (this.mode === 'ai') {
+      const isHumanTurn = turn === this.playerColor;
+      if (isHumanTurn) {
+        this.ui.showToast(`It is ${turnName}'s turn — select your piece`);
+      } else {
+        this.ui.showToast('Computer is thinking…');
+      }
+    } else {
+      this.ui.showToast(`It is ${turnName}'s turn to move`);
+    }
   }
 
   async onAttemptMove(fromSquare, toSquare) {

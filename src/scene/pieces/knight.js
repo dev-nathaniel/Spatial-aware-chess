@@ -154,6 +154,8 @@ export function createKnightGeometry() {
   const normalizedParts = parts.map(normalizeForMerge);
   const unified = mergeGeometries(normalizedParts, false);
   unified.computeVertexNormals();
+  unified.computeBoundingBox();
+  unified.computeBoundingSphere();
 
   // Dispose temporary part geometries to avoid memory leaks
   parts.forEach((p) => p.dispose());

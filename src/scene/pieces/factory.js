@@ -220,6 +220,8 @@ export function getPieceGeometry(type) {
   }
 
   finalGeo.computeVertexNormals();
+  finalGeo.computeBoundingBox();
+  finalGeo.computeBoundingSphere();
   geometryCache.set(type, finalGeo);
   return finalGeo;
 }

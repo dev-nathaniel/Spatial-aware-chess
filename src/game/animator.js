@@ -129,6 +129,55 @@ export class Animator {
     this.activeAnimations.push(anim);
   }
 
+  animateLift(pieceMesh, targetY = 0.35, duration = 160) {
+    if (!pieceMesh) return;
+    this.activeAnimations = this.activeAnimations.filter(
+      (a) => !(a.mesh === pieceMesh && a.type === 'float')
+    );
+    const startY = pieceMesh.position.y;
+    const anim = {
+      type: 'float',
+      mesh: pieceMesh,
+      startTime: performance.now(),
+      duration,
+      startY,
+      targetY,
+      update(now) {
+        const elapsed = now - this.startTime;
+        const progress = Math.min(1, elapsed / this.duration);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        this.mesh.position.y = THREE.MathUtils.lerp(this.startY, this.targetY, ease);
+        return progress >= 1;
+      },
+    };
+    this.activeAnimations.push(anim);
+  }
+
+  animateDrop(pieceMesh, duration = 160) {
+    if (!pieceMesh) return;
+    this.activeAnimations = this.activeAnimations.filter(
+      (a) => !(a.mesh === pieceMesh && a.type === 'float')
+    );
+    const startY = pieceMesh.position.y;
+    if (startY === 0) return;
+    const anim = {
+      type: 'float',
+      mesh: pieceMesh,
+      startTime: performance.now(),
+      duration,
+      startY,
+      targetY: 0,
+      update(now) {
+        const elapsed = now - this.startTime;
+        const progress = Math.min(1, elapsed / this.duration);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        this.mesh.position.y = THREE.MathUtils.lerp(this.startY, 0, ease);
+        return progress >= 1;
+      },
+    };
+    this.activeAnimations.push(anim);
+  }
+
   update() {
     const now = performance.now();
     for (let i = this.activeAnimations.length - 1; i >= 0; i--) {
@@ -142,6 +191,6 @@ export class Animator {
   }
 
   isAnimating() {
-    return this.activeAnimations.length > 0;
+    return this.activeAnimations.some((a) => a.type !== 'float');
   }
 }
