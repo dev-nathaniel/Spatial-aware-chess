@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Staunton — Photorealistic 3D Chess in Your Browser</title>
+    <meta
+      name="description"
+      content="Play chess on a hand-turned, photorealistic 3D Staunton set. Lacquered boxwood and ebony pieces, an inlaid walnut and maple board, real-time lighting and a Stockfish opponent — right in your browser."
+    />
+    <meta name="theme-color" content="#0d0a08" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene" aria-label="3D chess board"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+
+      <!-- ───────────── Top bar ───────────── -->
+      <header class="topbar">
+        <div class="brand glass" id="brand">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M6.5 22h11v-1.6c0-.5-.4-.9-.9-.9H7.4c-.5 0-.9.4-.9.9V22zm1.3-3.6h8.4c-.2-2.6-1.3-4.3-1.6-6.4 1.2.6 2.6.3 3.2-.6l.5-.9c.3-.5.2-1.1-.2-1.5l-3-3c-.3-1.8-1.5-3.2-3.1-3.8l-.6-1.9-1.5 2c-2.9.9-4.6 3.8-4.4 7.4.2 3.2 2 5.1 2.3 8.7z"/>
+          </svg>
+          <span class="brand-name">Staunton</span>
+        </div>
+        <nav class="toolbar glass" aria-label="View controls">
+          <button class="icon-btn" id="btn-view" title="Change camera view (V)" aria-label="Change camera view">
+            <svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-sound" title="Toggle sound (M)" aria-label="Toggle sound">
+            <svg viewBox="0 0 24 24" class="ico-on"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+            <svg viewBox="0 0 24 24" class="ico-off"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+            <svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-fullscreen" title="Fullscreen" aria-label="Fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </nav>
+      </header>
+
+      <!-- ───────────── Side panel ───────────── -->
+      <aside id="panel" class="panel glass" aria-label="Game panel">
+        <section class="player-card" id="card-top">
+          <div class="avatar"><img alt="" /></div>
+          <div class="player-meta">
+            <div class="player-name"><span class="name">Black</span><span class="thinking" aria-hidden="true"><i></i><i></i><i></i></span></div>
+            <div class="captured"></div>
+          </div>
+          <div class="clock">--:--</div>
+        </section>
+
+        <div class="status" id="status" role="status" aria-live="polite">White to move</div>
+
+        <section class="moves" id="moves" aria-label="Move history">
+          <div class="moves-empty">The board is set. Make the first move.</div>
+          <ol class="move-list"></ol>
+        </section>
+
+        <div class="actions">
+          <button class="action" id="btn-undo" title="Take back (Ctrl+Z)">
+            <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span>Undo</span>
+          </button>
+          <button class="action" id="btn-hint" title="Show a hint (H)">
+            <svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg><span>Hint</span>
+          </button>
+          <button class="action" id="btn-flip" title="Flip board (F)">
+            <svg viewBox="0 0 24 24"><path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/></svg><span>Flip</span>
+          </button>
+          <button class="action" id="btn-new" title="New game">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>New</span>
+          </button>
+          <button class="action danger" id="btn-resign" title="Resign">
+            <svg viewBox="0 0 24 24"><path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg><span>Resign</span>
+          </button>
+        </div>
+
+        <section class="player-card" id="card-bottom">
+          <div class="avatar"><img alt="" /></div>
+          <div class="player-meta">
+            <div class="player-name"><span class="name">White</span><span class="thinking" aria-hidden="true"><i></i><i></i><i></i></span></div>
+            <div class="captured"></div>
+          </div>
+          <div class="clock">--:--</div>
+        </section>
+      </aside>
+
+      <div id="toast" class="toast" role="alert"></div>
+
+      <!-- ───────────── Main menu ───────────── -->
+      <section id="menu" class="backdrop" aria-labelledby="menu-title">
+        <div class="modal glass menu">
+          <p class="eyebrow">Hand-turned · Lacquered · Weighted</p>
+          <h1 id="menu-title">Staunton <em>Chess</em></h1>
+          <p class="subtitle">A photorealistic boxwood &amp; ebony set on an inlaid walnut board — rendered live in your browser.</p>
+
+          <div class="field">
+            <span class="label">Opponent</span>
+            <div class="segmented" data-name="mode" role="radiogroup">
+              <button class="seg" data-value="ai" aria-pressed="true">Computer</button>
+              <button class="seg" data-value="local" aria-pressed="false">Friend · same device</button>
+            </div>
+          </div>
+
+          <div class="field" data-when="ai">
+            <span class="label">Play as</span>
+            <div class="segmented" data-name="color" role="radiogroup">
+              <button class="seg" data-value="w" aria-pressed="true"><i class="dot light"></i>White</button>
+              <button class="seg" data-value="random" aria-pressed="false"><i class="dot half"></i>Random</button>
+              <button class="seg" data-value="b" aria-pressed="false"><i class="dot dark"></i>Black</button>
+            </div>
+          </div>
+
+          <div class="field" data-when="ai">
+            <span class="label">Strength <output id="level-out">Level 3 · Casual</output></span>
+            <input type="range" id="level" min="1" max="8" value="3" step="1" aria-label="Computer strength" />
+          </div>
+
+          <div class="field">
+            <span class="label">Time control</span>
+            <div class="segmented chips" data-name="time" role="radiogroup">
+              <button class="seg" data-value="none" aria-pressed="true">Untimed</button>
+              <button class="seg" data-value="3+2" aria-pressed="false">3 | 2</button>
+              <button class="seg" data-value="5+0" aria-pressed="false">5 | 0</button>
+              <button class="seg" data-value="10+0" aria-pressed="false">10 | 0</button>
+              <button class="seg" data-value="15+10" aria-pressed="false">15 | 10</button>
+              <button class="seg" data-value="30+0" aria-pressed="false">30 | 0</button>
+            </div>
+          </div>
+
+          <button id="btn-start" class="btn-primary">Begin game</button>
+          <p class="hint-text">Drag or click pieces · Right-drag or two fingers to orbit · Scroll to zoom</p>
+        </div>
+      </section>
+
+      <!-- ───────────── Promotion ───────────── -->
+      <section id="promotion" class="backdrop hidden" aria-labelledby="promo-title">
+        <div class="modal glass promo">
+          <h2 id="promo-title">Promote your pawn</h2>
+          <div class="promo-options"></div>
+          <button class="btn-ghost" id="promo-cancel">Cancel</button>
+        </div>
+      </section>
+
+      <!-- ───────────── Game over ───────────── -->
+      <section id="gameover" class="backdrop hidden" aria-labelledby="go-title">
+        <div class="modal glass gameover">
+          <div class="go-pieces"></div>
+          <h2 id="go-title">Checkmate</h2>
+          <p id="go-sub">White wins</p>
+          <div class="go-actions">
+            <button class="btn-primary" id="btn-rematch">Rematch</button>
+            <button class="btn-ghost" id="btn-review">View board</button>
+            <button class="btn-ghost" id="btn-menu">Main menu</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────────── Settings ───────────── -->
+      <section id="settings" class="backdrop hidden" aria-labelledby="settings-title">
+        <div class="modal glass settings">
+          <h2 id="settings-title">Settings</h2>
+          <div class="field">
+            <span class="label">Render quality</span>
+            <div class="segmented" data-name="quality" role="radiogroup">
+              <button class="seg" data-value="high" aria-pressed="true">Cinematic</button>
+              <button class="seg" data-value="medium" aria-pressed="false">Balanced</button>
+              <button class="seg" data-value="low" aria-pressed="false">Fast</button>
+            </div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="opt-legal" checked /><span class="track"><i></i></span>Show legal moves</label>
+          <label class="toggle"><input type="checkbox" id="opt-rotate" checked /><span class="track"><i></i></span>Turn camera to the side to move (2 players)</label>
+          <label class="toggle"><input type="checkbox" id="opt-sound" checked /><span class="track"><i></i></span>Sound effects</label>
+          <div class="field">
+            <span class="label">Position</span>
+            <div class="row-btns">
+              <button class="btn-ghost small" id="btn-copy-pgn">Copy PGN</button>
+              <button class="btn-ghost small" id="btn-copy-fen">Copy FEN</button>
+            </div>
+            <div class="fen-row">
+              <input type="text" id="fen-input" placeholder="Paste a FEN to load a position…" spellcheck="false" />
+              <button class="btn-ghost small" id="btn-load-fen">Load</button>
+            </div>
+          </div>
+          <button class="btn-primary" id="btn-settings-close">Done</button>
+        </div>
+      </section>
+
+      <!-- ───────────── Loader ───────────── -->
+      <section id="loader" aria-live="polite">
+        <div class="loader-inner">
+          <svg class="loader-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M6.5 22h11v-1.6c0-.5-.4-.9-.9-.9H7.4c-.5 0-.9.4-.9.9V22zm1.3-3.6h8.4c-.2-2.6-1.3-4.3-1.6-6.4 1.2.6 2.6.3 3.2-.6l.5-.9c.3-.5.2-1.1-.2-1.5l-3-3c-.3-1.8-1.5-3.2-3.1-3.8l-.6-1.9-1.5 2c-2.9.9-4.6 3.8-4.4 7.4.2 3.2 2 5.1 2.3 8.7z"/>
+          </svg>
+          <div class="loader-title">Staunton</div>
+          <div class="loader-bar"><i id="loader-fill"></i></div>
+          <div class="loader-status" id="loader-status">Preparing the workshop…</div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
