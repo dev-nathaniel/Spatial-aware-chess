@@ -534,7 +534,17 @@ export class HighlightManager {
 
   clear() {
     this.setSelected(null);
+    this.setLastMove(null, null);
     this.setLegalMoves([]);
     this.setCheck(null);
+
+    // Guaranteed complete flush of any lingering highlight meshes
+    while (this.group.children.length > 0) {
+      this.group.remove(this.group.children[0]);
+    }
+    this.selectedGroup = null;
+    this.lastMoveGroups = [];
+    this.legalGroups = [];
+    this.checkGroup = null;
   }
 }

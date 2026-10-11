@@ -71,6 +71,7 @@ export class GameController {
     // Reset chess.js state
     this.chess.reset();
     this.animator.resetCapturedCounts();
+    this.input.clearSelection();
     this.board.highlightManager.clear();
 
     // Spawn 3D pieces
@@ -447,7 +448,13 @@ export class GameController {
     }
 
     this.spawnAllPieces();
+    this.input.clearSelection();
     this.board.highlightManager.clear();
+    const history = this.chess.history({ verbose: true });
+    if (history.length > 0) {
+      const last = history[history.length - 1];
+      this.board.highlightManager.setLastMove(last.from, last.to);
+    }
     this.updateGameStateUI();
     this.ui.showToast('Move taken back');
   }
